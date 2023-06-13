@@ -5,11 +5,35 @@ var qs = require('querystring');
 var template = require('./lib/template.js');
 var path = require('path');
 var sanitizeHtml = require('sanitize-html');
+var cookie = require('cookie');
 
+function authOwner(request, response) {
+  var isOwner = false;
+    
+  var cookies = {}
+  if(request.headers.cookie) cookies = cookie.parse(request.headers.cookie)
+  
+  console.log(cookies)
+
+  if(cookies.email === 'aa@gmail.com' && cookies.password === '1234') {
+    isOwner = true;
+  }
+}
+
+function authStatusUI(request, response) {
+
+  // 로그인 Auth Check
+  var authStatusUI = '<a href="/login>로그인</a>'
+  if(authOwner(request, response)) {
+    authStatusUI = '<a href="/logout_process>로그아웃</a>'
+  } 
+  return authStatusUI
+}
 var app = http.createServer(function(request,response){
     var _url = request.url;
     var queryData = url.parse(_url, true).query;
-    var pathname = url.parse(_url, true).pathname;
+    var pathname = url.parse(_url, true).pathname;    
+
     if(pathname === '/'){
       if(queryData.id === undefined){
         fs.readdir('./data', function(error, filelist){
@@ -18,7 +42,8 @@ var app = http.createServer(function(request,response){
           var list = template.list(filelist);
           var html = template.HTML(title, list,
             `<h2>${title}</h2>${description}`,
-            `<a href="/create">create</a>`
+            `<a href="/create">create</a>`,
+            authStatusUI(request, response)
           );
           response.writeHead(200);
           response.end(html);
@@ -135,6 +160,64 @@ var app = http.createServer(function(request,response){
             response.end();
           })
       });
+    } else if(pathname === '/login') {
+      fs.readdir('./data', function(error, filelist){
+        var title = 'Login';
+        var list = template.list(filelist);
+        var html = template.HTML(title, list,
+          `
+          <form action = "login_process" method="post">
+            <p><input type="text" name="email" placeholder="email"></p>
+            <p><input type="password" name="password" placeholder="password"></p>
+            <p><input type="submit"></p>
+          </form>
+          `,
+          `<a href="/create">create</a>`
+        );
+        response.writeHead(200);
+        response.end(html);
+      });
+    } else if(pathname === '/login_process') {
+      var body = '';
+      request.on('data', function(data){
+          body = body + data;
+      });
+      request.on('end', function(){
+          var post = qs.parse(body);
+          if(post.email === 'aa@gmail.com' && post.password === '1234') {
+            response.writeHead(302, {
+              Location : '/',
+              'Set-cookie' : [
+                `email=${post.email}`,
+                `password=${post.password}`,
+                `nickname=egoing`,
+              ]
+            })
+            response.end()
+          } else {
+            response.end('Who?')
+          }
+          response.writeHead(302, {Location: `/`});
+          response.end();
+      });
+    } else if(pathname === '/logout_process') {
+      var body = '';
+      request.on('data', function(data){
+          body = body + data;
+      });
+      request.on('end', function(){
+          var post = qs.parse(body);
+              
+          response.writeHead(302, {
+            Location : '/',
+            'Set-cookie' : [
+            `email=; Max-Age=0`,
+            `password=; Max-Age=0`,
+            `nickname=; Max-Age=0`,
+            ]
+          });
+          response.end();
+      })
     } else {
       response.writeHead(404);
       response.end('Not found');
